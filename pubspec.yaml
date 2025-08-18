@@ -1,0 +1,70 @@
+name: ilolo
+description: A new Flutter project.
+publish_to: 'none'
+
+version: 1.3.5+11
+
+environment:
+  sdk: '>=3.0.3 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.2
+  flutter_onboard: ^2.0.0
+  go_router: ^9.1.1
+  shared_preferences: ^2.2.2
+  provider: ^6.1.2
+  gap: ^3.0.1
+  # google_mobile_ads: ^3.0.0  # Temporarily disabled due to dependency conflicts
+  cached_network_image: ^3.3.1
+  http: ^0.13.6
+  google_fonts: ^4.0.4
+  flutter_svg: ^2.0.9
+  shimmer: ^3.0.0
+  crisp_chat: ^0.0.3
+  share_plus: ^7.2.1
+  pinput: ^3.0.1
+  google_sign_in: ^6.1.5
+  image_picker: ^1.0.7
+  crypto: ^3.0.3
+  url_launcher: ^6.2.5
+  star_rating: ^0.11.0
+  flutter_boxicons: ^3.0.0
+  webview_flutter: ^4.4.2
+  webview_flutter_wkwebview:
+  easy_image_viewer: ^1.2.1
+  loader_overlay: ^2.3.2
+  # firebase_core: ^2.4.1  # Temporarily disabled - implementing custom auth
+  # firebase_auth: ^4.2.5  # Temporarily disabled - implementing custom auth
+  package_info_plus: ^8.3.1
+
+
+dependency_overrides:
+  flutter_paystack:
+    path: flutter_paystack_fix
+
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.3.6
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  remove_alpha_ios: true
+  image_path: "assets/icons/iloloicon.jpg"
+  min_sdk_android: 21
+
+flutter_native_splash:
+  image: assets/icons/ilololaunchericon.png
+  color: "#1895B0"
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/
