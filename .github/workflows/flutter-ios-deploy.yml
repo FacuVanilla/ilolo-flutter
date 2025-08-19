@@ -83,16 +83,14 @@ jobs:
         cp Flutter/Release.xcconfig Flutter/Release.xcconfig.backup 2>/dev/null || true
         
         # Add warning suppression to Release config
-        cat >> Flutter/Release.xcconfig << 'EOF'
-
-// Suppress deprecation warnings from Flutter packages
-GCC_TREAT_WARNINGS_AS_ERRORS = NO
-SWIFT_TREAT_WARNINGS_AS_ERRORS = NO
-CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = NO
-GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS = NO
-CLANG_WARN_DEPRECATED = NO
-SWIFT_SUPPRESS_WARNINGS = YES
-EOF
+        echo "" >> Flutter/Release.xcconfig
+        echo "// Suppress deprecation warnings from Flutter packages" >> Flutter/Release.xcconfig
+        echo "GCC_TREAT_WARNINGS_AS_ERRORS = NO" >> Flutter/Release.xcconfig
+        echo "SWIFT_TREAT_WARNINGS_AS_ERRORS = NO" >> Flutter/Release.xcconfig
+        echo "CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = NO" >> Flutter/Release.xcconfig
+        echo "GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS = NO" >> Flutter/Release.xcconfig
+        echo "CLANG_WARN_DEPRECATED = NO" >> Flutter/Release.xcconfig
+        echo "SWIFT_SUPPRESS_WARNINGS = YES" >> Flutter/Release.xcconfig
     
     - name: Build Flutter iOS (Release)
       run: |
