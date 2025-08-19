@@ -76,9 +76,36 @@ jobs:
         # List installed profiles for debugging
         ls -la ~/Library/MobileDevice/Provisioning\ Profiles/
     
+    - name: Configure iOS Build Settings
+      run: |
+        cd ios
+        # Backup original config
+        cp Flutter/Release.xcconfig Flutter/Release.xcconfig.backup 2>/dev/null || true
+        
+        # Add warning suppression to Release config
+        cat >> Flutter/Release.xcconfig << EOF
+
+// Suppress deprecation warnings from Flutter packages
+GCC_TREAT_WARNINGS_AS_ERRORS = NO
+SWIFT_TREAT_WARNINGS_AS_ERRORS = NO
+CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = NO
+GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS = NO
+CLANG_WARN_DEPRECATED = NO
+SWIFT_SUPPRESS_WARNINGS = YES
+EOF
+    
     - name: Build Flutter iOS (Release)
       run: |
         flutter build ios --release --no-codesign --suppress-analytics
+        
+    - name: Restore iOS Config (Cleanup)
+      if: always()
+      run: |
+        cd ios
+        # Restore original config if backup exists
+        if [ -f "Flutter/Release.xcconfig.backup" ]; then
+          mv Flutter/Release.xcconfig.backup Flutter/Release.xcconfig
+        fi
         
     - name: Build Archive with Xcode
       run: |
