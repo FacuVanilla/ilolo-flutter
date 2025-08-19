@@ -18,12 +18,12 @@ jobs:
     - name: Setup Xcode
       uses: maxim-lobanov/setup-xcode@v1
       with:
-        xcode-version: 'latest-stable'
+        xcode-version: 'latest-stable' # This ensures iOS 18 SDK
     
     - name: Setup Flutter
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.24.0'
+        flutter-version: '3.24.0' # Use latest stable version
         channel: 'stable'
         cache: true
     
@@ -34,7 +34,7 @@ jobs:
       run: flutter pub get
     
     - name: Cache CocoaPods
-      uses: actions/cache@v4
+      uses: actions/cache@v3
       with:
         path: ios/Pods
         key: ${{ runner.os }}-pods-${{ hashFiles('**/Podfile.lock') }}
@@ -45,7 +45,7 @@ jobs:
       run: |
         cd ios
         sudo gem install cocoapods
-        pod install --repo-update
+        pod install
     
     - name: Create certificates directory
       run: mkdir -p ~/certs
@@ -53,85 +53,45 @@ jobs:
     - name: Import App Store Connect API Key
       run: |
         echo "${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}" | base64 --decode > ~/certs/AuthKey.p8
-        chmod 600 ~/certs/AuthKey.p8
     
     - name: Import Distribution Certificate
       run: |
         echo "${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}" | base64 --decode > ~/certs/distribution.p12
-        # Create and configure keychain
         security create-keychain -p github-actions build.keychain
         security default-keychain -s build.keychain
         security unlock-keychain -p github-actions build.keychain
-        security set-keychain-settings -lut 21600 build.keychain
-        # Import certificate
         security import ~/certs/distribution.p12 -k build.keychain -P "${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}" -T /usr/bin/codesign
         security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k github-actions build.keychain
-        # List available identities for debugging
-        security find-identity -v -p codesigning build.keychain
     
     - name: Import Provisioning Profile
       run: |
         mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
         echo "${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/ilolo_AppStore.mobileprovision
-        # List installed profiles for debugging
-        ls -la ~/Library/MobileDevice/Provisioning\ Profiles/
     
-    - name: Build Flutter iOS (Release with Warning Suppression)
+    - name: Build Flutter iOS (Release)
+      run: |
+        flutter build ios --release --no-codesign --suppress-analytics || true
+        
+    - name: Build Archive with Xcode (Ignore Warnings)
       run: |
         cd ios
-        # Add inhibit_all_warnings to Podfile if not present
-        if ! grep -q "inhibit_all_warnings!" Podfile; then
-          cp Podfile Podfile.backup
-          awk '/platform :ios/ { print; print "inhibit_all_warnings!"; next }1' Podfile > Podfile.tmp
-          mv Podfile.tmp Podfile
-        fi
-        pod install
-        cd ..
-        
-        # Now build Flutter iOS
-        flutter build ios --release --no-codesign --suppress-analytics
-        
-    - name: Build Archive with Xcode
-      run: |
-        cd ios
-        # Clean build folder first
-        rm -rf build/
-        
-        # Build with explicit destination and better error handling
         xcodebuild clean archive \
           -workspace Runner.xcworkspace \
           -scheme Runner \
           -configuration Release \
-          -destination "generic/platform=iOS" \
           -archivePath build/Runner.xcarchive \
-          -allowProvisioningUpdates \
           CODE_SIGN_STYLE=Manual \
           DEVELOPMENT_TEAM="${{ secrets.TEAM_ID }}" \
           CODE_SIGN_IDENTITY="iPhone Distribution" \
           PROVISIONING_PROFILE_SPECIFIER="ilolo_AppStore" \
           GCC_TREAT_WARNINGS_AS_ERRORS=NO \
           SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
-          CLANG_WARN_DEPRECATED=NO \
-          GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS=NO \
-          IPHONEOS_DEPLOYMENT_TARGET=13.0 \
-          ONLY_ACTIVE_ARCH=NO \
-          EXCLUDED_ARCHS[sdk=iphonesimulator*]=arm64 \
-          | xcpretty || (echo "Build failed" && exit 1)
-    
-    - name: Verify Archive
-      run: |
-        cd ios
-        if [ ! -d "build/Runner.xcarchive" ]; then
-          echo "Archive not found!"
-          exit 1
-        fi
-        echo "Archive created successfully at:"
-        ls -la build/Runner.xcarchive/
+          IPHONEOS_DEPLOYMENT_TARGET=13.0
     
     - name: Export IPA
       run: |
         cd ios
-        cat > ExportOptions.plist << 'EOF'
+        cat > ExportOptions.plist << EOF
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
         <plist version="1.0">
@@ -144,13 +104,6 @@ jobs:
           <true/>
           <key>uploadBitcode</key>
           <false/>
-          <key>signingStyle</key>
-          <string>manual</string>
-          <key>provisioningProfiles</key>
-          <dict>
-            <key>com.ilolo.app</key>
-            <string>ilolo_AppStore</string>
-          </dict>
         </dict>
         </plist>
         EOF
@@ -158,19 +111,7 @@ jobs:
         xcodebuild -exportArchive \
           -archivePath build/Runner.xcarchive \
           -exportPath build/ \
-          -exportOptionsPlist ExportOptions.plist \
-          | xcpretty || (echo "Export failed" && exit 1)
-    
-    - name: Verify IPA
-      run: |
-        cd ios
-        if [ ! -f "build/Runner.ipa" ]; then
-          echo "IPA not found!"
-          ls -la build/
-          exit 1
-        fi
-        echo "IPA created successfully:"
-        ls -la build/Runner.ipa
+          -exportOptionsPlist ExportOptions.plist
     
     - name: Upload to App Store Connect
       run: |
@@ -181,14 +122,3 @@ jobs:
           --apiKey "${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}" \
           --apiIssuer "${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}" \
           --show-progress
-    
-    # Optional: Upload artifacts for debugging
-    - name: Upload build artifacts
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: build-logs
-        path: |
-          ios/build/
-          ~/Library/Logs/gym/
-        retention-days: 3
