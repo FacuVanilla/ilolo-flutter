@@ -104,7 +104,7 @@ class _MyAppState extends State<MyApp> {
           canvasColor: colorCustom,
           indicatorColor: colorCustom,
           useMaterial3: true,
-          dialogTheme: const DialogThemeData(backgroundColor: Colors.white),
+          dialogBackgroundColor: Colors.white,
         ),
         routerConfig: widget.r,
       ),
