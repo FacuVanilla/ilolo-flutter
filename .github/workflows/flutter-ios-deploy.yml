@@ -1,40 +1,48 @@
-name: iOS Build and Export IPA
+name: iOS Build & Export IPA
 
 on:
+  push:
+    branches:
+      - main   # change if your default branch is different
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
-  build-ios:
+  build:
     runs-on: macos-14
 
     steps:
+      # Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Flutter
+      # Setup Flutter
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: 3.22.0  # set your Flutter version
 
+      # Install CocoaPods dependencies
       - name: Install dependencies
-        run: flutter pub get
-
-      - name: Install CocoaPods
         run: |
           cd ios
           pod install --repo-update
 
-      - name: Build iOS Archive
+      # Build iOS archive
+      - name: Build iOS archive
         run: |
+          flutter build ios --release --no-codesign
           cd ios
           xcodebuild clean archive \
             -workspace Runner.xcworkspace \
             -scheme Runner \
             -configuration Release \
             -archivePath build/Runner.xcarchive \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM=R88J8FNA23 \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
             PROVISIONING_PROFILE_SPECIFIER=ilolo_AppStore \
             GCC_TREAT_WARNINGS_AS_ERRORS=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
@@ -42,46 +50,12 @@ jobs:
             -allowProvisioningUpdates \
             -destination generic/platform=iOS
 
-      - name: Create ExportOptions.plist
-        run: |
-          cat <<EOF > ios/ExportOptions.plist
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>app-store</string>
-            <key>teamID</key>
-            <string>R88J8FNA23</string>
-            <key>uploadBitcode</key>
-            <false/>
-            <key>uploadSymbols</key>
-            <true/>
-            <key>compileBitcode</key>
-            <false/>
-            <key>signingStyle</key>
-            <string>manual</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>com.ilolo.app</key>
-              <string>ilolo_AppStore</string>
-            </dict>
-          </dict>
-          </plist>
-          EOF
-
+      # Export IPA
       - name: Export IPA
         run: |
           cd ios
           xcodebuild -exportArchive \
             -archivePath build/Runner.xcarchive \
             -exportOptionsPlist ExportOptions.plist \
-            -exportPath build/RunnerIPA \
-            -allowProvisioningUpdates
-
-      - name: Upload IPA Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-build
-          path: ios/build/RunnerIPA
-          retention-days: 30
+            -exportPath build/ipa \
+            -all
