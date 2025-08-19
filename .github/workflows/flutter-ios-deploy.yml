@@ -76,37 +76,18 @@ jobs:
         # List installed profiles for debugging
         ls -la ~/Library/MobileDevice/Provisioning\ Profiles/
     
-    - name: Configure iOS Build Settings
+    - name: Build Flutter iOS (Release with Warning Suppression)
       run: |
-        cd ios
-        # Backup original config
-        cp Flutter/Release.xcconfig Flutter/Release.xcconfig.backup 2>/dev/null || true
+        # Set environment variables to suppress warnings as errors
+        export GCC_TREAT_WARNINGS_AS_ERRORS=NO
+        export SWIFT_TREAT_WARNINGS_AS_ERRORS=NO
         
-        # Add warning suppression to Release config using printf to avoid YAML issues
-        printf '\n// Suppress deprecation warnings from Flutter packages\n' >> Flutter/Release.xcconfig
-        printf 'GCC_TREAT_WARNINGS_AS_ERRORS = NO\n' >> Flutter/Release.xcconfig
-        printf 'SWIFT_TREAT_WARNINGS_AS_ERRORS = NO\n' >> Flutter/Release.xcconfig
-        printf 'CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = NO\n' >> Flutter/Release.xcconfig
-        printf 'GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS = NO\n' >> Flutter/Release.xcconfig
-        printf 'CLANG_WARN_DEPRECATED = NO\n' >> Flutter/Release.xcconfig
-        printf 'SWIFT_SUPPRESS_WARNINGS = YES\n' >> Flutter/Release.xcconfig
-        
-        # Also modify the main project build settings
-        sed -i '' 's/GCC_TREAT_WARNINGS_AS_ERRORS = YES/GCC_TREAT_WARNINGS_AS_ERRORS = NO/g' Runner.xcodeproj/project.pbxproj || true
-        sed -i '' 's/SWIFT_TREAT_WARNINGS_AS_ERRORS = YES/SWIFT_TREAT_WARNINGS_AS_ERRORS = NO/g' Runner.xcodeproj/project.pbxproj || true
-    
-    - name: Build Flutter iOS (Release)
-      run: |
-        flutter build ios --release --no-codesign --suppress-analytics
-        
-    - name: Restore iOS Config (Cleanup)
-      if: always()
-      run: |
-        cd ios
-        # Restore original config if backup exists
-        if [ -f "Flutter/Release.xcconfig.backup" ]; then
-          mv Flutter/Release.xcconfig.backup Flutter/Release.xcconfig
-        fi
+        # Build iOS with explicit build settings to ignore deprecation warnings
+        flutter build ios --release --no-codesign --suppress-analytics -- \
+          GCC_TREAT_WARNINGS_AS_ERRORS=NO \
+          SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
+          CLANG_WARN_DEPRECATED=NO \
+          GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS=NO
         
     - name: Build Archive with Xcode
       run: |
@@ -128,6 +109,8 @@ jobs:
           PROVISIONING_PROFILE_SPECIFIER="ilolo_AppStore" \
           GCC_TREAT_WARNINGS_AS_ERRORS=NO \
           SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
+          CLANG_WARN_DEPRECATED=NO \
+          GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS=NO \
           IPHONEOS_DEPLOYMENT_TARGET=13.0 \
           ONLY_ACTIVE_ARCH=NO \
           EXCLUDED_ARCHS[sdk=iphonesimulator*]=arm64 \
@@ -146,7 +129,7 @@ jobs:
     - name: Export IPA
       run: |
         cd ios
-        cat > ExportOptions.plist << EOF
+        cat > ExportOptions.plist << 'EOF'
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
         <plist version="1.0">
