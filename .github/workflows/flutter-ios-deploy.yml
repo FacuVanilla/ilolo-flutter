@@ -1,11 +1,11 @@
-name: iOS Build and Export
+name: Build iOS IPA
 
 on:
   push:
     branches:
       - main
       - master
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   build-ios:
@@ -15,34 +15,49 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Flutter
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.22.2
+          flutter-version: 3.24.3
           channel: stable
 
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build iOS (no codesign)
-        run: flutter build ios --release --no-codesign
-
       - name: Install CocoaPods
         run: |
           cd ios
-          pod install --repo-update
+          pod repo update
+          pod install
           cd ..
 
-      # 👇 Force Pods to Automatic signing, only Runner uses manual
-      - name: Fix Pod Signing
+      - name: Create ExportOptions.plist
         run: |
-          cd ios
-          # Reset provisioning profiles for Pods
-          for target in $(xcodebuild -list -json | jq -r '.workspace.schemes[]' | grep -v Runner); do
-            echo "Setting $target to Automatic signing..."
-            /usr/libexec/PlistBuddy -c "Set :objects:XCBuildConfiguration:buildSettings:PROVISIONING_PROFILE_SPECIFIER Automatic" Pods/Pods.xcodeproj/project.pbxproj || true
-          done
-          cd ..
+          cat <<EOF > ExportOptions.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>teamID</key>
+            <string>R88J8FNA23</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.ilolo.app</key>
+              <string>ilolo_AppStore</string>
+            </dict>
+            <key>compileBitcode</key>
+            <false/>
+            <key>destination</key>
+            <string>export</string>
+            <key>manageAppVersionAndBuildNumber</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
 
       - name: Build archive
         run: |
@@ -60,7 +75,7 @@ jobs:
             IPHONEOS_DEPLOYMENT_TARGET=13.0 \
             PROVISIONING_PROFILE_SPECIFIER=ilolo_AppStore \
             -allowProvisioningUpdates \
-            -destination generic/platform=iOS
+            -destination 'generic/platform=iOS'
           cd ..
 
       - name: Export IPA
@@ -68,13 +83,12 @@ jobs:
           cd ios
           xcodebuild -exportArchive \
             -archivePath build/Runner.xcarchive \
-            -exportPath build/Runner.ipa \
-            -exportOptionsPlist ExportOptions.plist \
-            -allowProvisioningUpdates
+            -exportOptionsPlist ../ExportOptions.plist \
+            -exportPath build/Runner
           cd ..
 
-      - name: Upload IPA
+      - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ilolo-app-ipa
-          path: ios/build/Runner.ipa/*.ipa
+          name: ilolo-ipa
+          path: ios/build/Runner/Runner.ipa
