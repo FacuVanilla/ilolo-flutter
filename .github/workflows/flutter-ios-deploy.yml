@@ -1,83 +1,71 @@
-name: Build and Upload iOS to TestFlight
+name: Build iOS App for App Store
 
 on:
-  workflow_dispatch: # manual trigger
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
-  build-ios:
-    runs-on: macos-latest
+  build:
+    runs-on: macos-14
 
     steps:
+      # -------------------
+      # 1. Checkout code
+      # -------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 1. Setup Flutter
+      # -------------------
+      # 2. Setup Flutter
+      # -------------------
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.0' # adjust to your version
+          flutter-version: '3.24.0'
 
-      - name: Install dependencies
+      - name: Flutter pub get
         run: flutter pub get
 
-      # 2. Setup certificates and provisioning profiles
-      - name: Decode and install distribution certificate
+      # -------------------
+      # 3. Setup Certificates & Provisioning Profile
+      # -------------------
+      - name: Install Distribution Certificate
         run: |
-          echo "${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}" | base64 --decode > certificate.p12
-          security import certificate.p12 -k ~/Library/Keychains/login.keychain -P "${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}" -T /usr/bin/codesign
+          echo "$IOS_DISTRIBUTION_CERTIFICATE_BASE64" | base64 --decode > dist.cer.p12
+          security import dist.cer.p12 -k ~/Library/Keychains/login.keychain-db -P "$IOS_DISTRIBUTION_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
 
-      - name: Decode and install provisioning profile
+      - name: Install Provisioning Profile
         run: |
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          echo "${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/Ilolo_AppStore.mobileprovision
+          echo "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/Ilolo_AppStore.mobileprovision
 
-      # 3. Create exportOptions.plist dynamically
-      - name: Create exportOptions.plist
+      # -------------------
+      # 4. Inspect Provisioning Profile (for debugging)
+      # -------------------
+      - name: Inspect Provisioning Profile
         run: |
-          cat <<EOF > ios/exportOptions.plist
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>method</key>
-              <string>app-store</string>
-              <key>uploadSymbols</key>
-              <true/>
-              <key>compileBitcode</key>
-              <false/>
-              <key>signingStyle</key>
-              <string>manual</string>
-              <key>teamID</key>
-              <string>${{ secrets.TEAM_ID }}</string>
-              <key>provisioningProfiles</key>
-              <dict>
-                  <key>com.ilolo.app</key>
-                  <string>Ilolo Marketplace App Store</string>
-              </dict>
-          </dict>
-          </plist>
-          EOF
+          security cms -D -i ~/Library/MobileDevice/Provisioning\ Profiles/Ilolo_AppStore.mobileprovision > profile.plist
+          echo "👉 Provisioning Profile Info:"
+          /usr/libexec/PlistBuddy -c "Print :Name" profile.plist
+          /usr/libexec/PlistBuddy -c "Print :UUID" profile.plist
+          /usr/libexec/PlistBuddy -c "Print :TeamIdentifier:0" profile.plist
+          /usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" profile.plist
 
-      # 4. Build IPA
-      - name: Build IPA
-        run: flutter build ipa --release --export-options-plist=ios/exportOptions.plist
+      # -------------------
+      # 5. Build iOS IPA
+      # -------------------
+      - name: Build iOS IPA
+        run: |
+          flutter build ipa --release \
+            --export-options-plist=ios/exportOptions.plist
 
-      # 5. Upload to TestFlight
-      - name: Upload IPA to TestFlight
-        uses: apple-actions/upload-testflight-build@v1
-        with:
-          app-type: ios
-          app-path: build/ios/ipa/*.ipa
-          issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          api-key-id: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
-          api-private-key: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
-
-      # 6. Upload artifacts (optional)
-      - name: Upload IPA artifact
+      # -------------------
+      # 6. Upload Artifact
+      # -------------------
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: IloloApp-IPA
+          name: ios-release-ipa
           path: build/ios/ipa/*.ipa
