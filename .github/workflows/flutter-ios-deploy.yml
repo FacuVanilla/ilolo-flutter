@@ -12,33 +12,38 @@ jobs:
     runs-on: macos-15
 
     steps:
-      # Checkout repo
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Setup Flutter
       - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: 3.22.2
           channel: stable
 
-      # Install dependencies
       - name: Install dependencies
         run: flutter pub get
 
-      # Build iOS (no codesign, just prepares Xcode project)
-      - name: Flutter build ios
+      - name: Build iOS (no codesign)
         run: flutter build ios --release --no-codesign
 
-      # Install CocoaPods
       - name: Install CocoaPods
         run: |
           cd ios
           pod install --repo-update
           cd ..
 
-      # Build Xcode Archive
+      # 👇 Force Pods to Automatic signing, only Runner uses manual
+      - name: Fix Pod Signing
+        run: |
+          cd ios
+          # Reset provisioning profiles for Pods
+          for target in $(xcodebuild -list -json | jq -r '.workspace.schemes[]' | grep -v Runner); do
+            echo "Setting $target to Automatic signing..."
+            /usr/libexec/PlistBuddy -c "Set :objects:XCBuildConfiguration:buildSettings:PROVISIONING_PROFILE_SPECIFIER Automatic" Pods/Pods.xcodeproj/project.pbxproj || true
+          done
+          cd ..
+
       - name: Build archive
         run: |
           cd ios
@@ -53,13 +58,11 @@ jobs:
             GCC_TREAT_WARNINGS_AS_ERRORS=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
             IPHONEOS_DEPLOYMENT_TARGET=13.0 \
+            PROVISIONING_PROFILE_SPECIFIER=ilolo_AppStore \
             -allowProvisioningUpdates \
-            -destination generic/platform=iOS \
-            OTHER_CODE_SIGN_FLAGS="--deep" \
-            "PROVISIONING_PROFILE_SPECIFIER[Runner]=ilolo_AppStore"
+            -destination generic/platform=iOS
           cd ..
 
-      # Export IPA
       - name: Export IPA
         run: |
           cd ios
@@ -70,7 +73,6 @@ jobs:
             -allowProvisioningUpdates
           cd ..
 
-      # Upload IPA artifact
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
