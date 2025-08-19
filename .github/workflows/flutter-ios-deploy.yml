@@ -1,64 +1,83 @@
-name: Build iOS App (App Store Distribution)
+name: Build and Upload iOS to TestFlight
 
 on:
+  workflow_dispatch: # manual trigger
   push:
     branches:
-      - main   # adjust to your release branch
+      - main
 
 jobs:
   build-ios:
     runs-on: macos-latest
 
     steps:
-      # 1. Checkout code
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      # 2. Install Flutter
-      - uses: subosito/flutter-action@v2
+      # 1. Setup Flutter
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.24.0" # set your Flutter version
+          flutter-version: '3.22.0' # adjust to your version
 
-      # 3. Get Flutter dependencies (creates ios/Flutter/Generated.xcconfig)
-      - name: Get Flutter dependencies
+      - name: Install dependencies
         run: flutter pub get
 
-      # 4. Install CocoaPods dependencies
-      - name: Install CocoaPods
+      # 2. Setup certificates and provisioning profiles
+      - name: Decode and install distribution certificate
         run: |
-          cd ios
-          pod install --repo-update
+          echo "${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}" | base64 --decode > certificate.p12
+          security import certificate.p12 -k ~/Library/Keychains/login.keychain -P "${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}" -T /usr/bin/codesign
 
-      # 5. Setup code signing
-      - name: Setup code signing
-        env:
-          IOS_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
-          IOS_DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
-          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+      - name: Decode and install provisioning profile
         run: |
-          # Certificate
-          echo "$IOS_DISTRIBUTION_CERTIFICATE_BASE64" | base64 --decode > certificate.p12
-          security create-keychain -p "" build.keychain
-          security import certificate.p12 -k build.keychain -P "$IOS_DISTRIBUTION_CERTIFICATE_PASSWORD" -A
-          security list-keychains -d user -s build.keychain
-          security default-keychain -d user -s build.keychain
-          security unlock-keychain -p "" build.keychain
-          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
-
-          # Provisioning Profile
-          echo "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > profile.mobileprovision
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          UUID=$(grep -aA1 UUID profile.mobileprovision | grep -io "[-A-F0-9]\{36\}")
-          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
+          echo "${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/Ilolo_AppStore.mobileprovision
 
-      # 6. Build the iOS app for App Store
-      - name: Build iOS archive
+      # 3. Create exportOptions.plist dynamically
+      - name: Create exportOptions.plist
         run: |
-          flutter build ipa --release \
-            --export-options-plist=ios/exportOptions.plist
+          cat <<EOF > ios/exportOptions.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>app-store</string>
+              <key>uploadSymbols</key>
+              <true/>
+              <key>compileBitcode</key>
+              <false/>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>teamID</key>
+              <string>${{ secrets.TEAM_ID }}</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>com.ilolo.app</key>
+                  <string>Ilolo Marketplace App Store</string>
+              </dict>
+          </dict>
+          </plist>
+          EOF
 
-      # 7. Upload IPA as artifact
+      # 4. Build IPA
+      - name: Build IPA
+        run: flutter build ipa --release --export-options-plist=ios/exportOptions.plist
+
+      # 5. Upload to TestFlight
+      - name: Upload IPA to TestFlight
+        uses: apple-actions/upload-testflight-build@v1
+        with:
+          app-type: ios
+          app-path: build/ios/ipa/*.ipa
+          issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          api-key-id: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          api-private-key: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+
+      # 6. Upload artifacts (optional)
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ios-app
+          name: IloloApp-IPA
           path: build/ios/ipa/*.ipa
