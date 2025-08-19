@@ -83,7 +83,7 @@ jobs:
         cp Flutter/Release.xcconfig Flutter/Release.xcconfig.backup 2>/dev/null || true
         
         # Add warning suppression to Release config
-        cat >> Flutter/Release.xcconfig << EOF
+        cat >> Flutter/Release.xcconfig << 'EOF'
 
 // Suppress deprecation warnings from Flutter packages
 GCC_TREAT_WARNINGS_AS_ERRORS = NO
