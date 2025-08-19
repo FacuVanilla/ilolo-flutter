@@ -78,16 +78,7 @@ jobs:
     
     - name: Build Flutter iOS (Release with Warning Suppression)
       run: |
-        # Set environment variables to suppress warnings as errors
-        export GCC_TREAT_WARNINGS_AS_ERRORS=NO
-        export SWIFT_TREAT_WARNINGS_AS_ERRORS=NO
-        
-        # Build iOS with explicit build settings to ignore deprecation warnings
-        flutter build ios --release --no-codesign --suppress-analytics -- \
-          GCC_TREAT_WARNINGS_AS_ERRORS=NO \
-          SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
-          CLANG_WARN_DEPRECATED=NO \
-          GCC_WARN_ABOUT_DEPRECATED_FUNCTIONS=NO
+        flutter build ios --release --no-codesign --suppress-analytics
         
     - name: Build Archive with Xcode
       run: |
