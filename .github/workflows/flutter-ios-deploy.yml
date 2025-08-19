@@ -2,9 +2,7 @@ name: Build iOS IPA
 
 on:
   push:
-    branches:
-      - main
-      - master
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
@@ -29,6 +27,15 @@ jobs:
           cd ios
           pod repo update
           pod install
+          cd ..
+
+      - name: Fix signing for Pods
+        run: |
+          cd ios
+          # Force Pods to Automatic signing
+          find Pods/Pods.xcodeproj -name project.pbxproj -print0 | xargs -0 sed -i '' \
+            -e 's/PROVISIONING_PROFILE_SPECIFIER = ilolo_AppStore;/PROVISIONING_PROFILE_SPECIFIER = "";/g' \
+            -e 's/CODE_SIGN_STYLE = Manual;/CODE_SIGN_STYLE = Automatic;/g'
           cd ..
 
       - name: Create ExportOptions.plist
@@ -70,10 +77,10 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM=R88J8FNA23 \
             CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER=ilolo_AppStore \
             GCC_TREAT_WARNINGS_AS_ERRORS=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
             IPHONEOS_DEPLOYMENT_TARGET=13.0 \
-            PROVISIONING_PROFILE_SPECIFIER=ilolo_AppStore \
             -allowProvisioningUpdates \
             -destination 'generic/platform=iOS'
           cd ..
