@@ -18,13 +18,17 @@ jobs:
         with:
           flutter-version: "3.24.0" # set your Flutter version
 
-      # 3. Install CocoaPods dependencies
+      # 3. Get Flutter dependencies (creates ios/Flutter/Generated.xcconfig)
+      - name: Get Flutter dependencies
+        run: flutter pub get
+
+      # 4. Install CocoaPods dependencies
       - name: Install CocoaPods
         run: |
           cd ios
           pod install --repo-update
 
-      # 4. Setup code signing
+      # 5. Setup code signing
       - name: Setup code signing
         env:
           IOS_DISTRIBUTION_CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
@@ -46,13 +50,13 @@ jobs:
           UUID=$(grep -aA1 UUID profile.mobileprovision | grep -io "[-A-F0-9]\{36\}")
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
 
-      # 5. Build the iOS app for App Store
+      # 6. Build the iOS app for App Store
       - name: Build iOS archive
         run: |
           flutter build ipa --release \
             --export-options-plist=ios/exportOptions.plist
 
-      # 6. Upload IPA as artifact
+      # 7. Upload IPA as artifact
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
