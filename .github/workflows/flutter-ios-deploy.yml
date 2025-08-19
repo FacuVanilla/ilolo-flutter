@@ -79,11 +79,11 @@ jobs:
     - name: Build Flutter iOS (Release with Warning Suppression)
       run: |
         cd ios
-        # Directly modify the Podfile to suppress warnings
+        # Add inhibit_all_warnings to Podfile if not present
         if ! grep -q "inhibit_all_warnings!" Podfile; then
-          sed -i '' '/platform :ios/a\
-inhibit_all_warnings!
-' Podfile
+          cp Podfile Podfile.backup
+          awk '/platform :ios/ { print; print "inhibit_all_warnings!"; next }1' Podfile > Podfile.tmp
+          mv Podfile.tmp Podfile
         fi
         pod install
         cd ..
