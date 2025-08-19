@@ -70,7 +70,14 @@ jobs:
     
     - name: Build Flutter iOS (Release)
       run: |
-        flutter build ios --release --no-codesign
+        flutter build ios --release --no-codesign --suppress-analytics
+        
+    - name: Fix iOS Deployment Target (if needed)
+      run: |
+        cd ios
+        # Set minimum iOS version to avoid deprecated API issues
+        sed -i '' 's/platform :ios, .*/platform :ios, '\''13.0'\''/' Podfile
+        pod install --repo-update
     
     - name: Build Archive with Xcode
       run: |
