@@ -24,8 +24,12 @@ jobs:
         with:
           flutter-version: 3.22.0  # set your Flutter version
 
+      # Install Flutter dependencies (this generates ios/Flutter/Generated.xcconfig)
+      - name: Flutter pub get
+        run: flutter pub get
+
       # Install CocoaPods dependencies
-      - name: Install dependencies
+      - name: Install iOS dependencies
         run: |
           cd ios
           pod install --repo-update
@@ -58,4 +62,12 @@ jobs:
             -archivePath build/Runner.xcarchive \
             -exportOptionsPlist ExportOptions.plist \
             -exportPath build/ipa \
-            -all
+            -allowProvisioningUpdates
+
+      # Upload IPA artifact
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ilolo-app-ipa
+          path: ios/build/ipa/*.ipa
+          retention-days: 7
