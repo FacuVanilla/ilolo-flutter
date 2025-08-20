@@ -42,7 +42,7 @@ jobs:
           echo "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/Ilolo_AppStore.mobileprovision
 
       # -------------------
-      # 4. Inspect Provisioning Profile (for debugging)
+      # 4. Inspect Provisioning Profile (debug)
       # -------------------
       - name: Inspect Provisioning Profile
         run: |
